@@ -6,8 +6,11 @@
 #include <errno.h>
 #include <string.h>
 
-static int do_copyin( const char *filename, int inumber );
+static int do_copyin( const char *filename, int inumber, int flag );
 static int do_copyout( int inumber, const char *filename );
+static int create_inode();
+static int do_encode(char* buffer, int length);
+static int do_random(char* buffer, int length);
 
 int main( int argc, char *argv[] )
 {
@@ -82,13 +85,7 @@ int main( int argc, char *argv[] )
 			
 		} else if(!strcmp(cmd,"create")) {
 			if(args==1) {
-				inumber = fs_create();
-				/* Bug fixed on April 30th: check for inumber>=0 */
-				if(inumber>=0) {
-					printf("created inode %d\n",inumber);
-				} else {
-					printf("create failed!\n");
-				}
+				int inumber = create_inode();
 			} else {
 				printf("use: create\n");
 			}
@@ -112,11 +109,43 @@ int main( int argc, char *argv[] )
 			} else {
 				printf("use: cat <inumber>\n");
 			}
+		}else if(!strcmp(cmd,"captureflag")) {
+			printf("Are you kidding?\n");
+		}
+		else if(!strcmp(cmd,"plantflag")) {
+			time_t t;
+			srand((unsigned) time(&t));
+			int num1 = rand()%100;
+			int num2 = rand()%100;
+			for(int i=0; i<num1; i++){
+				inumber = create_inode();
+				if(do_copyin("flag",inumber, 2)) {
+						printf("copied file %s to inode %d\n",arg1,inumber);
+				} else {
+						printf("copy failed!\n");
+				}
+			}
+	
+			inumber = create_inode();
+			if(do_copyin("flag",inumber, 1)) {
+					printf("plant flag to inode %d!\n", inumber);
+			} else {
+					printf("copy failed!\n");
+			}
 
-		} else if(!strcmp(cmd,"copyin")) {
+			for(int i=0; i<num2; i++){
+				inumber = create_inode();
+				if(do_copyin("flag",inumber, 2)) {
+						printf("copied file %s to inode %d\n",arg1,inumber);
+				} else {
+						printf("copy failed!\n");
+				}
+			}
+
+		}else if(!strcmp(cmd,"copyin")) {
 			if(args==3) {
 				inumber = atoi(arg2);
-				if(do_copyin(arg1,inumber)) {
+				if(do_copyin(arg1,inumber, 0)) {
 					printf("copied file %s to inode %d\n",arg1,inumber);
 				} else {
 					printf("copy failed!\n");
@@ -145,6 +174,8 @@ int main( int argc, char *argv[] )
 			printf("    create\n");
 			printf("    delete  <inode>\n");
 			printf("    cat     <inode>\n");
+			printf("    captureflag\n");
+			printf("    plantflag\n");
 			printf("    copyin  <file> <inode>\n");
 			printf("    copyout <inode> <file>\n");
 			printf("    help\n");
@@ -167,7 +198,8 @@ int main( int argc, char *argv[] )
 	return 0;
 }
 
-static int do_copyin( const char *filename, int inumber )
+
+static int do_copyin( const char *filename, int inumber, int flag )
 {
 	FILE *file;
 	int offset=0, result, actual;
@@ -182,7 +214,13 @@ static int do_copyin( const char *filename, int inumber )
 	while(1) {
 		result = fread(buffer,1,sizeof(buffer),file);
 		if(result<=0) break;
+
 		if(result>0) {
+			if(flag==1){
+				do_encode(buffer, result);
+			}else if(flag==2){
+				do_random(buffer, result);
+			}
 			actual = fs_write(inumber,buffer,result,offset);
 			if(actual<0) {
 				printf("ERROR: fs_write return invalid result %d\n",actual);
@@ -225,4 +263,38 @@ static int do_copyout( int inumber, const char *filename )
 
 	fclose(file);
 	return 1;
+}
+
+static int create_inode(){
+	int inumber = fs_create();
+	/* Bug fixed on April 30th: check for inumber>=0 */
+	if(inumber>=0) {
+		printf("created inode %d\n",inumber);
+	} else {
+		printf("create failed!\n");
+	}
+	return inumber;
+}
+
+static int do_encode(char* buffer, int length){
+	unsigned int mask = fs_getmask();
+	for(int i=0; i<length; i++){
+		unsigned char* buf = &buffer[i];
+		*buf  = (*buf >> 1) | (*buf << 7);
+		*buf ^= (unsigned char)(mask&0xff);
+		*buf  = (*buf >> 2) | (*buf << 6);
+		*buf ^= (unsigned char)((mask>>8)&0xff);
+		*buf  = (*buf >> 3) | (*buf << 5);
+		*buf ^= (unsigned char)((mask>>16)&0xff);
+		*buf  = (*buf >> 4) | (*buf << 4);
+		*buf ^= (unsigned char)((mask>>24)&0xff);
+		*buf  = (*buf >> 5) | (*buf << 3);
+	}
+	return 0;
+}
+
+static int do_random(char* buffer, int length){
+	for(int i=0; i<length; i++)
+		buffer[i] = rand()%256;
+	return 0;
 }

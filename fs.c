@@ -12,6 +12,7 @@
 #define INODES_PER_BLOCK   128 // 64, assume 512 every block;
 #define POINTERS_PER_INODE 5
 #define POINTERS_PER_BLOCK 1024 //128
+#define ENCODE_MASK 0xDEEDBEEF
 
 /* don't care about config and operation, they are used mixedly*/
 #define FS_CONFIG_SUCCESS 1
@@ -26,6 +27,7 @@ struct fs_superblock {
 	int nblocks;
 	int ninodeblocks;
 	int ninodes;
+	int mask;
 };
 
 struct fs_inode {
@@ -73,6 +75,7 @@ int fs_format()
 		return FS_CONFIG_FAIL;
 	}
 	block.super.nblocks = nblocks;
+	block.super.mask = ENCODE_MASK;
 
 	// ninodeblocks =  10 percent of nblocks, rounding up.
 	int ninodeblocks = (nblocks + 9)/10;
@@ -86,10 +89,15 @@ int fs_format()
 	FS_INFO.ninodes = block.super.ninodes;
 
 	// set inode block, isvalid = 0
-	memset(block.data, 0, DISK_BLOCK_SIZE);
+	memset(block.data, 0x0, DISK_BLOCK_SIZE);
+	// for(int i=0; i< DISK_BLOCK_SIZE; i++){
+	// 	block.data[i] = rand()%256; 
+	// }
+
 	for(int i=1; i<=ninodeblocks; i++){
 		disk_write(i, block.data);
 	}
+
 
 	return FS_CONFIG_SUCCESS;
 }
@@ -316,6 +324,17 @@ int fs_getsize( int inumber )
 	struct fs_inode inode; 
 	inode_load(inumber, &inode);
 	return inode.size;
+}
+
+int fs_getmask(){
+	if(!FS_INFO.mounted)
+		return FS_OPERATION_FAIL;
+
+	union fs_block block;
+
+	disk_read(0,block.data);
+
+	return block.super.mask;
 }
 
 static int translate_block(struct fs_inode* inode, int inner_block_id){

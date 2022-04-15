@@ -20,7 +20,7 @@ int disk_init( const char *filename, int n )
 	if(!diskfile) return 0;
 
 	ftruncate(fileno(diskfile),n*DISK_BLOCK_SIZE);
-
+	
 	nblocks = n;
 	nreads = 0;
 	nwrites = 0;
