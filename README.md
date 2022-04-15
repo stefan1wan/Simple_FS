@@ -54,7 +54,7 @@ else if(!strcmp(cmd,"plantflag")) {
 }
 ```
 
-The decode function is naive
+The encode function is naive
 ```c
 static int do_encode(char* buffer, int length){
     unsigned int mask = fs_getmask();
